@@ -1,0 +1,212 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+
+
+enum Role {
+  FREE
+  PREMIUM
+  CREATOR
+  ADMIN
+}
+
+enum VideoStatus {
+  PROCESSING
+  READY
+  FAILED
+}
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  passwordHash    String
+  username        String    @unique
+  role            Role      @default(FREE)
+  isVerified      Boolean   @default(false)
+  isEmailVerified Boolean   @default(false)
+  emailVerificationToken  String?
+  passwordResetToken      String?
+  passwordResetExpires    DateTime?
+  isBanned        Boolean   @default(false)
+  avatarUrl       String?
+  bio             String?
+  ageVerifiedAt   DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  videos          Video[]
+  subscriptions   Subscription[]
+  complianceLogs  ComplianceLog[]
+  likes           Like[]
+  comments        Comment[]
+  notifications   Notification[]
+}
+
+model Video {
+  id          String      @id @default(uuid())
+  title       String
+  description String?
+  s3Key       String
+  hlsUrl      String?
+  thumbnailUrl String?
+  duration    Int?        // in seconds
+  status      VideoStatus @default(PROCESSING)
+  category    String      @default("Uncategorized")
+  isPremium   Boolean     @default(false)
+  isFeatured  Boolean     @default(false)
+  views       Int         @default(0)
+  
+  userId      String
+  user        User        @relation(fields: [userId], references: [id])
+
+  likes       Like[]
+  comments    Comment[]
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  isLike    Boolean  // true = like, false = dislike
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  
+  videoId   String
+  video     Video    @relation(fields: [videoId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, videoId]) // User can only interact once per video
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  text      String
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  
+  videoId   String
+  video     Video    @relation(fields: [videoId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Subscription {
+  id            String    @id @default(uuid())
+  stripeSubId   String    @unique
+  status        String
+  currentPeriodEnd DateTime
+  
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model SubscriptionPlan {
+  id            String    @id @default(uuid())
+  name          String
+  price         String
+  duration      String
+  icon          String
+  features      String[]
+  color         String
+  buttonColor   String
+  glow          String?
+  popular       Boolean   @default(false)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model ComplianceLog {
+  id        String   @id @default(uuid())
+  action    String
+  ipAddress String
+  details   String?
+  
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model CouponCode {
+  id              String    @id @default(uuid())
+  code            String    @unique
+  durationDays    Int       // how many days of premium
+  discountPercent Int?      // optional discount percentage (e.g. 20 = 20% off)
+  description     String?   // admin notes / description
+  maxUses         Int       @default(1)
+  currentUses     Int       @default(0)
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  expiresAt       DateTime?
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  title     String
+  message   String
+  type      String   @default("info") // info, success, warning, premium
+  isRead    Boolean  @default(false)
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model SiteSetting {
+  id        String   @id @default("global")
+  siteName  String   @default("ADUKET")
+  logoUrl   String?
+  
+  // SMTP Settings
+  smtpHost  String?
+  smtpPort  Int?
+  smtpUser  String?
+  smtpPass  String?
+  smtpFrom  String?
+
+  // SEO Settings
+  metaTitle        String?
+  metaDescription  String?
+  metaKeywords     String?
+  canonicalUrl     String?
+  robotsTxt        String?
+  sitemapUrl       String?
+  ogTitle          String?
+  ogDescription    String?
+  ogImage          String?
+  googleAnalyticsId  String?
+  googleVerification String?
+  schemaMarkup     String?
+
+  updatedAt DateTime @updatedAt
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  icon        String   @default("Layers")
+  color       String   @default("text-red-500")
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
